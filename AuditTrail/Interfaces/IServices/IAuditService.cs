@@ -1,11 +1,11 @@
-﻿using AuditTrail.Models.Entity;
-using AuditTrail.Models.Enums;
+﻿using Audit.Models.DTO;
 
-namespace AuditTrail.Interfaces.IServices
+namespace Audit.Interfaces.IServices
 {
     public interface IAuditService
     {
-        Task LogAuditAsync<T>(T oldObject, T newObject, AuditAction action, string userId, string entityName);
-        Task<IEnumerable<AuditEntry>> GetAuditTrailAsync(string entityName, int page, int pageSize);
+        Task<AuditResponse> CreateAuditAsync(AuditRequest request);
+        Task<PagedResult<AuditResponse>> GetAuditsAsync(AuditQueryRequest query);
+        Task<AuditResponse?> GetAuditByIdAsync(int id);
     }
 }

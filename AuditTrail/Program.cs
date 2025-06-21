@@ -1,40 +1,56 @@
-using AuditTrail.EntityDbContext;
-using AuditTrail.Interfaces.IServices;
-using AuditTrail.Interfaces;
-using AuditTrail.Services;
+
+using Audit.EntityDbContext;
+using Audit.Interfaces.IServices;
+using Audit.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
-namespace AuditTrail;
+var builder = WebApplication.CreateBuilder(args);
 
-public class Program
-{
-    public static void Main(string[] args)
+// Add services to the container
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
     {
-        var builder = WebApplication.CreateBuilder(args);
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.JsonSerializerOptions.PropertyNamingPolicy = null;
+    });
 
-        // Add services to the container
-        builder.Services.AddControllers();
-        builder.Services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-        builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "AuditTrail API", Version = "v1" });
+});
 
-        // Add Swagger for API documentation
-        builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
+// Configure Entity Framework
+builder.Services.AddDbContext<AuditContext>(options =>
+    options.UseInMemoryDatabase("AuditTrailDb")); // Using InMemory for demo
 
-        var app = builder.Build();
+// Register services
+builder.Services.AddScoped<IAuditService, AuditService>();
 
-        // Configure the HTTP request pipeline
-        if (app.Environment.IsDevelopment())
-        {
-            app.UseSwagger();
-            app.UseSwaggerUI();
-        }
+// Add CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", builder =>
+    {
+        builder.AllowAnyOrigin()
+               .AllowAnyMethod()
+               .AllowAnyHeader();
+    });
+});
 
-        app.UseHttpsRedirection();
-        app.UseAuthorization();
-        app.MapControllers();
+var app = builder.Build();
 
-        app.Run();
-    }
+// Configure the HTTP request pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
+
+app.UseHttpsRedirection();
+app.UseCors("AllowAll");
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();

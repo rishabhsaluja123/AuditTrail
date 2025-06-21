@@ -1,52 +1,88 @@
-using AuditTrail.Interfaces.IServices;
-using AuditTrail.Models.DTO;
+using Audit.Models.DTO;
 using Microsoft.AspNetCore.Mvc;
+using Audit.Interfaces.IServices;
 
-namespace AuditTrail.Controllers
+namespace Audit.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
     public class AuditController : ControllerBase
     {
         private readonly IAuditService _auditService;
+        private readonly ILogger<AuditController> _logger;
 
-        public AuditController(IAuditService auditService)
+        public AuditController(IAuditService auditService, ILogger<AuditController> logger)
         {
             _auditService = auditService;
+            _logger = logger;
         }
 
-        [HttpPost("log")]
-        public async Task<IActionResult> LogAudit<T>([FromBody] AuditRequest<T> request)
+        /// <summary>
+        /// Creates a new audit  entry
+        /// </summary>
+        [HttpPost]
+        public async Task<ActionResult<AuditResponse>> CreateAudit([FromBody] AuditRequest request)
         {
             try
             {
-                await _auditService.LogAuditAsync(
-                    request.OldObject,
-                    request.NewObject,
-                    request.Action,
-                    request.UserId,
-                    request.EntityName);
-                return Ok();
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var result = await _auditService.CreateAuditAsync(request);
+
+                _logger.LogInformation("Audit  created for entity {EntityName} ",
+                    request.EntityName, request.UserId);
+
+                return CreatedAtAction(nameof(GetAudit), new { id = result.Id }, result);
             }
             catch (Exception ex)
             {
-                // Log exception (using ILogger in production)
-                return StatusCode(500, "An error occurred while logging audit trail");
+                _logger.LogError(ex, "Error creating audit  for entity {EntityName}", request.EntityName);
+                return StatusCode(500, "An error occurred while creating the audit ");
             }
         }
 
-        [HttpGet("{entityName}")]
-        public async Task<IActionResult> GetAuditTrail(string entityName, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        /// <summary>
+        /// Gets audit s with optional filtering and pagination
+        /// </summary>
+        [HttpGet]
+        public async Task<ActionResult<PagedResult<AuditResponse>>> GetAudits([FromQuery] AuditQueryRequest query)
         {
             try
             {
-                var auditTrail = await _auditService.GetAuditTrailAsync(entityName, page, pageSize);
-                return Ok(auditTrail);
+                var result = await _auditService.GetAuditsAsync(query);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                // Log exception (using ILogger in production)
-                return StatusCode(500, "An error occurred while retrieving audit trail");
+                _logger.LogError(ex, "Error retrieving audit s");
+                return StatusCode(500, "An error occurred while retrieving audit s");
+            }
+        }
+
+        /// <summary>
+        /// Gets a specific audit  by ID
+        /// </summary>
+        [HttpGet("{id}")]
+        public async Task<ActionResult<AuditResponse>> GetAudit(int id)
+        {
+            try
+            {
+                var result = await _auditService.GetAuditByIdAsync(id);
+
+                if (result == null)
+                {
+                    return NotFound($"Audit  with ID {id} not found");
+                }
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving audit  with ID {Id}", id);
+                return StatusCode(500, "An error occurred while retrieving the audit ");
             }
         }
     }
